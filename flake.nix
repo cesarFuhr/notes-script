@@ -14,8 +14,8 @@
         });
       in
       rec {
-        defaultPackage = packages.my-script;
-        packages.my-script = pkgs.symlinkJoin {
+        defaultPackage = packages.notes;
+        packages.notes = pkgs.symlinkJoin {
           name = my-name;
           paths = [ my-script ] ++ my-buildInputs;
           buildInputs = [ pkgs.makeWrapper ];
