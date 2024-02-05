@@ -6,8 +6,8 @@ fi
 NOTES_DIR=$(date +"%Y/%m")
 FILE=$(date +"%d")
 
-mkdir -p ~/.notes/$SUBJECT && pushd $_ && mkdir -p $NOTES_DIR
+mkdir -p ~/.notes/$SUBJECT && pushd $_ > /dev/null && mkdir -p $NOTES_DIR
 
 $EDITOR "./${NOTES_DIR}/${FILE}.md"
 
-popd
+popd > /dev/null
