@@ -3,12 +3,11 @@ if [ -n "$1" ]; then
   SUBJECT=$1
 fi
 
-CUR_DIR=$PWD
-FOLDER=$(date +"%Y/%m")
+NOTES_DIR=$(date +"%Y/%m")
 FILE=$(date +"%d")
 
-mkdir -p ~/.notes/$SUBJECT && cd $_ && mkdir -p $FOLDER
+mkdir -p ~/.notes/$SUBJECT && pushd $_ && mkdir -p $NOTES_DIR
 
-$EDITOR "./$FOLDER/$FILE.md"
+$EDITOR "./${NOTES_DIR}/${FILE}.md"
 
-cd $CUR_DIR
+popd
