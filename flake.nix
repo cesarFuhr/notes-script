@@ -1,26 +1,34 @@
 {
   description = "A very basic note taking script";
 
-  inputs.flake-utils.url = "github:numtide/flake-utils";
+  outputs = inputs@{ self, nixpkgs }:
+    let
+      forAllSystems = function:
+        nixpkgs.lib.genAttrs [
+          "x86_64-linux"
+          "aarch64-linux"
+          "x86_64-darwin"
+          "aarch64-darwin"
+        ]
+          (system: function nixpkgs.legacyPackages.${system});
+    in
+    {
+      defaultPackage.x86_64-linux = self.packages.x86_64-linux.notes;
+      packages.x86_64-linux.notes =
+        let
+          pkgs = import nixpkgs { system = "x86_64-linux"; };
 
-  outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        my-name = "notes";
-        my-buildInputs = with pkgs; [ coreutils ];
-        my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./notes.sh)).overrideAttrs (old: {
-          buildCommand = "${old.buildCommand}\n patchShebangs $out";
-        });
-      in
-      rec {
-        defaultPackage = packages.notes;
-        packages.notes = pkgs.symlinkJoin {
-          name = my-name;
-          paths = [ my-script ] ++ my-buildInputs;
+          pkg-name = "notes";
+          pkg-buildInputs = with pkgs; [ coreutils ];
+          pkg-script = (pkgs.writeScriptBin pkg-name (builtins.readFile ./notes.sh)).overrideAttrs (old: {
+            buildCommand = "${old.buildCommand}\n patchShebangs $out";
+          });
+        in
+        pkgs.symlinkJoin {
+          name = pkg-name;
+          paths = [ pkg-script ] ++ pkg-buildInputs;
           buildInputs = [ pkgs.makeWrapper ];
-          postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+          postBuild = "wrapProgram $out/bin/${pkg-name} --prefix PATH : $out/bin";
         };
-      }
-    );
+    };
 }
