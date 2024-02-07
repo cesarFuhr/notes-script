@@ -32,6 +32,42 @@
                 buildInputs = [ pkgs.makeWrapper ];
                 postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
               };
+
+            todo =
+              let
+                pkgs = import nixpkgs {
+                  system = system;
+                };
+                my-name = "todo";
+                my-buildInputs = with pkgs; [ coreutils ripgrep ];
+                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./todo.sh)).overrideAttrs (old: {
+                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
+                });
+              in
+              pkgs.symlinkJoin {
+                name = my-name;
+                paths = [ my-script ] ++ my-buildInputs;
+                buildInputs = [ pkgs.makeWrapper ];
+                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+              };
+
+            done =
+              let
+                pkgs = import nixpkgs {
+                  system = system;
+                };
+                my-name = "done";
+                my-buildInputs = with pkgs; [ coreutils ripgrep ];
+                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./done.sh)).overrideAttrs (old: {
+                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
+                });
+              in
+              pkgs.symlinkJoin {
+                name = my-name;
+                paths = [ my-script ] ++ my-buildInputs;
+                buildInputs = [ pkgs.makeWrapper ];
+                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+              };
           };
         })
         systems
