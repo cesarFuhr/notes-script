@@ -51,12 +51,12 @@
                 postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
               };
 
-            done =
+            todo-done =
               let
                 pkgs = import nixpkgs {
                   system = system;
                 };
-                my-name = "done";
+                my-name = "todo-done";
                 my-buildInputs = with pkgs; [ coreutils ripgrep ];
                 my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./done.sh)).overrideAttrs (old: {
                   buildCommand = "${old.buildCommand}\n patchShebangs $out";
