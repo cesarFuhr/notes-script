@@ -8,7 +8,6 @@
         "x86_64-darwin"
         "aarch64-darwin"
       ];
-
     in
     {
       packages = builtins.listToAttrs (builtins.map
