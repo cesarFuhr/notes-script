@@ -3,8 +3,6 @@ if [ -n "$1" ]; then
   SUBJECT=$1
 fi
 
-mkdir -p ~/.notes/$SUBJECT && pushd $_ > /dev/null 
-
-rg --pretty '\[ \]' .
-
-popd > /dev/null
+pushd ~/.notes/$SUBJECT > /dev/null && \
+  rg --pretty '\[ \]' . && \
+  popd > /dev/null
