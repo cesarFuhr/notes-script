@@ -10,67 +10,35 @@
       ];
     in
     {
-      packages = builtins.listToAttrs (builtins.map
-        (system: {
-          name = system;
-          value = {
-            default = self.packages.${system}.notes;
-            notes =
-              let
-                pkgs = import nixpkgs {
-                  system = system;
-                };
-                my-name = "notes";
-                my-buildInputs = with pkgs; [ coreutils ];
-                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./notes.sh)).overrideAttrs (old: {
-                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
-                });
-              in
-              pkgs.symlinkJoin {
-                name = my-name;
-                paths = [ my-script ] ++ my-buildInputs;
-                buildInputs = [ pkgs.makeWrapper ];
-                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
-              };
+      packages = builtins.listToAttrs
+        (builtins.map
+          (system:
+            let
+              p = import nixpkgs { system = system; };
 
-            todo =
-              let
-                pkgs = import nixpkgs {
-                  system = system;
-                };
-                my-name = "todo";
-                my-buildInputs = with pkgs; [ coreutils ripgrep ];
-                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./todo.sh)).overrideAttrs (old: {
-                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
+              pack = ({ packageName, buildInputs }:
+                let
+                  script = (p.writeScriptBin packageName (builtins.readFile ./${packageName}.sh)).overrideAttrs (old: {
+                    buildCommand = "${old.buildCommand}\n patchShebangs $out";
+                  });
+                in
+                p.symlinkJoin {
+                  name = packageName;
+                  paths = [ script ] ++ buildInputs;
+                  buildInputs = [ p.makeWrapper ];
+                  postBuild = "wrapProgram $out/bin/${packageName} --prefix PATH : $out/bin";
                 });
-              in
-              pkgs.symlinkJoin {
-                name = my-name;
-                paths = [ my-script ] ++ my-buildInputs;
-                buildInputs = [ pkgs.makeWrapper ];
-                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
+            in
+            {
+              name = system;
+              value = rec {
+                default = notes;
+                notes = pack { packageName = "notes"; buildInputs = [ p.coreutils ]; };
+                todo = pack { packageName = "todo"; buildInputs = [ p.coreutils p.ripgrep ]; };
+                todo-done = pack { packageName = "todo-done"; buildInputs = [ p.coreutils p.ripgrep ]; };
               };
-
-            todo-done =
-              let
-                pkgs = import nixpkgs {
-                  system = system;
-                };
-                my-name = "todo-done";
-                my-buildInputs = with pkgs; [ coreutils ripgrep ];
-                my-script = (pkgs.writeScriptBin my-name (builtins.readFile ./done.sh)).overrideAttrs (old: {
-                  buildCommand = "${old.buildCommand}\n patchShebangs $out";
-                });
-              in
-              pkgs.symlinkJoin {
-                name = my-name;
-                paths = [ my-script ] ++ my-buildInputs;
-                buildInputs = [ pkgs.makeWrapper ];
-                postBuild = "wrapProgram $out/bin/${my-name} --prefix PATH : $out/bin";
-              };
-          };
-        })
-        systems
-      );
+            })
+          systems);
     };
 }
+
