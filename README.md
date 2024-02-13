@@ -14,14 +14,14 @@ Its almost easier to point you to the script itself since its so simple and smal
 notes subject
 ```
 
-Will open the `~/.notes/{subject}/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
+`notes` will open the `~/.notes/{subject}/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
 If no `subject` is given it will default to `personal`. So, running:
 
 ```bash
 notes
 ```
 
-`notes` will open the `~/.notes/personal/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
+Will open the `~/.notes/personal/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
 
 If the directories don't exist it will create them for you. When you close your editor it will move your shell back to the folder you were before calling the notes script.
 
