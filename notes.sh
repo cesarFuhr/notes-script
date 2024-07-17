@@ -1,13 +1,21 @@
-SUBJECT="personal"
+SUBJECT="."
 if [ -n "$1" ]; then
   SUBJECT=$1
 fi
 
-NOTES_DIR=$(date +"%Y/%m")
-FILE=$(date +"%d")
+NOTE_NAME=$(date +"%Y-%m-%d-%H:%M:%S")
+if [ -n "$2" ]; then
+  NOTE_NAME=$2
+fi
 
-mkdir -p ~/.notes/$SUBJECT && pushd $_ > /dev/null && mkdir -p $NOTES_DIR
+if [ -z "${NOTES_ROOT}" ]; then
+  NOTES_ROOT="$HOME/.notes"
+fi
 
-$EDITOR "./${NOTES_DIR}/${FILE}.md"
+FILE="$NOTE_NAME.md"
 
-popd > /dev/null
+mkdir -p "$NOTES_ROOT/$SUBJECT" && pushd "$_" > /dev/null || return
+
+$EDITOR "$NOTES_ROOT/$SUBJECT/${FILE}"
+
+popd > /dev/null || exit
