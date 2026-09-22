@@ -70,7 +70,10 @@ Interactively select a file with `fzf`:
 
 ```bash
 notes find
-notes work find
+notes find migration plan
+notes work find support
 ```
+
+Text after `find` is used as the initial `fzf` query.
 
 `$EDITOR` is used to open files. Missing journal and inbox directories are created automatically.

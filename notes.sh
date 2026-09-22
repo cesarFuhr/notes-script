@@ -16,7 +16,7 @@ Usage:
   notes [space] YYYY-MM-DD
   notes [space] todo
   notes [space] search QUERY
-  notes [space] find
+  notes [space] find [QUERY]
 EOF
 }
 
@@ -107,10 +107,9 @@ case "$COMMAND" in
     open_file "$file" "$line"
     ;;
   find)
-    (( $# == 0 )) || { usage >&2; exit 2; }
     [[ -d $SPACE_ROOT ]] || exit 0
     command -v fzf >/dev/null || { printf 'notes: find requires fzf\n' >&2; exit 1; }
-    selected=$(cd "$SPACE_ROOT" && find . -type f -print | sort | fzf) || exit 0
+    selected=$(cd "$SPACE_ROOT" && find . -type f -print | sort | fzf --query "$*") || exit 0
     [[ -n $selected ]] && open_file "$SPACE_ROOT/${selected#./}"
     ;;
   *)
