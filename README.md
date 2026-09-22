@@ -76,4 +76,4 @@ notes work find support
 
 Text after `find` is used as the initial `fzf` query.
 
-`$EDITOR` is used to open files. Missing journal and inbox directories are created automatically.
+`$EDITOR` is launched from `$NOTES_ROOT` when opening files. Missing journal and inbox directories are created automatically.

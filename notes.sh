@@ -36,9 +36,9 @@ open_file() {
   mkdir -p "$(dirname "$file")"
   read -r -a editor <<<"${EDITOR:-vi}"
   if [[ -n $line ]]; then
-    "${editor[@]}" "+$line" "$file"
+    (cd "$NOTES_ROOT" && "${editor[@]}" "+$line" "$file")
   else
-    "${editor[@]}" "$file"
+    (cd "$NOTES_ROOT" && "${editor[@]}" "$file")
   fi
 }
 
