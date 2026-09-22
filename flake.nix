@@ -44,20 +44,12 @@
           default = notes;
           notes = pack {
             packageName = "notes";
-            buildInputs = [ pkgs.coreutils ];
-          };
-          todo = pack {
-            packageName = "todo";
             buildInputs = [
               pkgs.coreutils
+              pkgs.findutils
+              pkgs.fzf
               pkgs.ripgrep
-            ];
-          };
-          todo-done = pack {
-            packageName = "todo-done";
-            buildInputs = [
-              pkgs.coreutils
-              pkgs.ripgrep
+              pkgs.tre
             ];
           };
         }

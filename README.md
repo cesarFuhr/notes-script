@@ -1,44 +1,76 @@
 # notes-script
 
-Not a featureful notes taking script.
+A small command-line tool for plain-text notes.
 
-## What it does
+## Model
 
-Its almost easier to point you to the script itself since its so simple and small, but notes script will use your `$EDITOR` to open markdown files based on the date inside the `~/.notes/{subject}` directory.
+A space is a directory under `$NOTES_ROOT`, which defaults to `~/.notes`:
 
-## How to use it
-
-### notes
-
-```bash
-notes subject
+```text
+~/.notes/
+├── work/
+│   ├── inbox/
+│   ├── journal/
+│   ├── plans/
+│   └── tasks.md
+└── personal/
+    ├── inbox/
+    ├── journal/
+    └── tasks.md
 ```
 
-`notes` will open the `~/.notes/{subject}/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
-If no `subject` is given it will default to `personal`. So, running:
+The default space is `personal`. Set another default with:
+
+```bash
+export NOTES_SPACE=work
+```
+
+## Usage
+
+Open today's journal in the default space:
 
 ```bash
 notes
 ```
 
-Will open the `~/.notes/personal/YYYY/MM/DD.md` file with the editor in your `$EDITOR` environment variable.
-
-If the directories don't exist it will create them for you. When you close your editor it will move your shell back to the folder you were before calling the notes script.
-
-### todo
+Choose a space or relative day:
 
 ```bash
-todo subject
+notes work
+notes yesterday
+notes work tomorrow
 ```
 
-`todo` follows the same pattern, but instead of opening your editor it will search for unmarked markdown checkboxes (`[ ]`) across all files in your `subject` directory and list the lines of the matches.
-If `subject` is omitted it will default to `personal`.
-
-### todo-done
+Open a particular journal date:
 
 ```bash
-todo-done subject
+notes journal 2026-09-21
+notes work 2026-09-21
 ```
 
-`todo-done` its the same as todo, but searches for for marked markdown checkboxes (`[x]`) across all files in your `subject` directory and list the lines of the matches.
-If `subject` is omitted it will default to `personal`.
+Capture a timestamped inbox note without deciding where it belongs:
+
+```bash
+notes new
+notes work new
+```
+
+List outstanding tasks or approximately search note contents in a space:
+
+```bash
+notes todo
+notes work todo
+notes search migration
+notes work search migration
+```
+
+Search tolerates up to two edits, including common misspellings and adjacent transpositions. It passes the matches to `fzf` and opens the selected file at the matching line.
+
+Interactively select a file with `fzf`:
+
+```bash
+notes find
+notes work find
+```
+
+`$EDITOR` is used to open files. Missing journal and inbox directories are created automatically.
