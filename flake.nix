@@ -1,6 +1,12 @@
 {
   description = "A very basic note taking script";
-  outputs = inputs@{ self, nixpkgs }:
+
+  inputs = {
+    nixpkgs.url = "nixpkgs/nixos-unstable";
+  };
+
+  outputs =
+    inputs@{ nixpkgs, ... }:
     let
       systems = [
         "x86_64-linux"
@@ -8,37 +14,53 @@
         "x86_64-darwin"
         "aarch64-darwin"
       ];
+      forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
     in
     {
-      packages = builtins.listToAttrs
-        (builtins.map
-          (system:
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          pack =
+            {
+              packageName,
+              buildInputs,
+            }:
             let
-              p = import nixpkgs { system = system; };
-
-              pack = ({ packageName, buildInputs }:
-                let
-                  script = (p.writeScriptBin packageName (builtins.readFile ./${packageName}.sh)).overrideAttrs (old: {
+              script =
+                (pkgs.writeScriptBin packageName (builtins.readFile ./${packageName}.sh)).overrideAttrs
+                  (old: {
                     buildCommand = "${old.buildCommand}\n patchShebangs $out";
                   });
-                in
-                p.symlinkJoin {
-                  name = packageName;
-                  paths = [ script ] ++ buildInputs;
-                  buildInputs = [ p.makeWrapper ];
-                  postBuild = "wrapProgram $out/bin/${packageName} --prefix PATH : $out/bin";
-                });
             in
-            {
-              name = system;
-              value = rec {
-                default = notes;
-                notes = pack { packageName = "notes"; buildInputs = [ p.coreutils ]; };
-                todo = pack { packageName = "todo"; buildInputs = [ p.coreutils p.ripgrep ]; };
-                todo-done = pack { packageName = "todo-done"; buildInputs = [ p.coreutils p.ripgrep ]; };
-              };
-            })
-          systems);
+            pkgs.symlinkJoin {
+              name = packageName;
+              paths = [ script ] ++ buildInputs;
+              buildInputs = [ pkgs.makeWrapper ];
+              postBuild = "wrapProgram $out/bin/${packageName} --prefix PATH : $out/bin";
+            };
+        in
+        rec {
+          default = notes;
+          notes = pack {
+            packageName = "notes";
+            buildInputs = [ pkgs.coreutils ];
+          };
+          todo = pack {
+            packageName = "todo";
+            buildInputs = [
+              pkgs.coreutils
+              pkgs.ripgrep
+            ];
+          };
+          todo-done = pack {
+            packageName = "todo-done";
+            buildInputs = [
+              pkgs.coreutils
+              pkgs.ripgrep
+            ];
+          };
+        }
+      );
     };
 }
-
