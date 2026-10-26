@@ -86,7 +86,13 @@ If `$NOTES_ROOT` is a git repository, notes are synced with its `origin` remote.
 notes sync
 ```
 
-Pulls rebase local commits on top of the remote. On a conflict the rebase is aborted, local commits are kept, and a message asks you to resolve it in `$NOTES_ROOT`. When offline, the push is retried on the next sync. Set `NOTES_SYNC=0` to disable syncing.
+Pulls rebase local commits on top of the remote. When offline, the push is retried on the next sync. Set `NOTES_SYNC=0` to disable syncing.
+
+Conflicts never block syncing. The remote is merged and committed as-is: text files keep both versions between conflict markers labelled with the host name, and binary files take the remote version while the local one is saved beside it as `name.conflict-<host>.ext`. A desktop notification names the files. Pick one and edit it with:
+
+```bash
+notes conflicts
+```
 
 Append-mostly files merge cleanly with a `.gitattributes` in the notes repository:
 

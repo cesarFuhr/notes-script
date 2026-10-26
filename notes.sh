@@ -18,12 +18,13 @@ Usage:
   notes [space] search QUERY
   notes [space] find [QUERY]
   notes sync
+  notes conflicts
 EOF
 }
 
 is_command() {
   case "$1" in
-    new | today | yesterday | tomorrow | journal | todo | search | find | sync) return 0 ;;
+    new | today | yesterday | tomorrow | journal | todo | search | find | sync | conflicts) return 0 ;;
     ????-??-??) return 0 ;;
     *) return 1 ;;
   esac
@@ -49,19 +50,56 @@ with_lock() {
   fi
 }
 
+notify() {
+  printf 'notes: %s\n' "$1" >&2
+  if command -v notify-send >/dev/null; then
+    notify-send --app-name=notes notes "$1" 2>/dev/null || true
+  fi
+}
+
+conflict_copy() {
+  local path=$1
+  if [[ ${path##*/} == ?*.* ]]; then
+    printf '%s.conflict-%s.%s' "${path%.*}" "$(uname -n)" "${path##*.}"
+  else
+    printf '%s.conflict-%s' "$path" "$(uname -n)"
+  fi
+}
+
+# Commits an unresolved merge as-is so syncing never blocks: text files keep
+# git's conflict markers, binary files take the remote version and keep the
+# local one beside it.
+commit_conflicts() {
+  local path
+  local -a paths
+  mapfile -d '' paths < <(git_notes diff --name-only --diff-filter=U -z)
+  (( ${#paths[@]} > 0 )) || return 1
+  for path in "${paths[@]}"; do
+    if git_notes cat-file -e ":2:$path" 2>/dev/null && git_notes cat-file -e ":3:$path" 2>/dev/null \
+      && ! grep -q '^<<<<<<< ' "$NOTES_ROOT/$path" 2>/dev/null; then
+      git_notes show ":2:$path" >"$NOTES_ROOT/$(conflict_copy "$path")"
+      git_notes checkout --theirs -- "$path"
+    elif [[ -f $NOTES_ROOT/$path ]]; then
+      sed -i "s/^<<<<<<< HEAD\$/<<<<<<< $(uname -n)/" "$NOTES_ROOT/$path"
+    fi
+  done
+  git_notes add --all || return 1
+  git_notes commit --quiet --no-gpg-sign --message "notes: $(uname -n) merge with conflicts" || return 1
+  notify "sync conflict in ${paths[*]}; run notes conflicts"
+}
+
 pull_notes() {
   git_notes remote get-url origin &>/dev/null || return 0
-  local git_dir
-  git_dir=$(git_notes rev-parse --absolute-git-dir)
-  if ! git_notes pull --quiet --rebase --autostash &>/dev/null; then
-    if [[ -d $git_dir/rebase-merge || -d $git_dir/rebase-apply ]]; then
-      git_notes rebase --abort 2>/dev/null || true
-      printf 'notes: sync conflict, local commits kept; resolve in %s\n' "$NOTES_ROOT" >&2
-    else
-      printf 'notes: pull failed, continuing offline\n' >&2
-    fi
+  if ! git_notes fetch --quiet origin &>/dev/null; then
+    printf 'notes: pull failed, continuing offline\n' >&2
     return 1
   fi
+  local upstream
+  upstream=$(git_notes rev-parse --abbrev-ref '@{upstream}' 2>/dev/null) || return 0
+  git_notes rebase --quiet "$upstream" &>/dev/null && return 0
+  git_notes rebase --abort &>/dev/null || true
+  git_notes merge --quiet --no-edit --no-gpg-sign "$upstream" &>/dev/null && return 0
+  commit_conflicts
 }
 
 commit_notes() {
@@ -174,6 +212,22 @@ case "$COMMAND" in
     [[ ${NOTES_SYNC:-1} != 0 ]] || { printf 'notes: sync disabled by NOTES_SYNC=0\n' >&2; exit 1; }
     sync_enabled || { printf 'notes: %s is not a git repository\n' "$NOTES_ROOT" >&2; exit 1; }
     with_lock sync_notes
+    ;;
+  conflicts)
+    (( $# == 0 )) || { usage >&2; exit 2; }
+    [[ -d $NOTES_ROOT ]] || exit 0
+    # One "path<TAB>line:text" entry per marker or conflict copy; paths may contain colons.
+    conflicts=$(
+      cd "$NOTES_ROOT" && {
+        rg --null --line-number --no-heading --glob '!.git' '^<<<<<<< ' . | tr '\0' '\t' || true
+        find . -path ./.git -prune -o -type f -name '*.conflict-*' -printf '%p\t1:\n'
+      }
+    )
+    [[ -n $conflicts ]] || { printf 'notes: no conflicts\n'; exit 0; }
+    selected=$(fzf <<<"$conflicts") || exit 0
+    file=${selected%%$'\t'*}
+    match=${selected#*$'\t'}
+    open_file "$NOTES_ROOT/${file#./}" "${match%%:*}"
     ;;
   *)
     usage >&2

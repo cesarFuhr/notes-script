@@ -56,7 +56,10 @@
               pkgs.ripgrep
               pkgs.tre
             ]
-            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.util-linux;
+            ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.libnotify
+              pkgs.util-linux
+            ];
           };
         }
       );
