@@ -77,3 +77,35 @@ notes work find support
 Text after `find` is used as the initial `fzf` query.
 
 `$EDITOR` is launched from `$NOTES_ROOT` when opening files. Missing journal and inbox directories are created automatically.
+
+## Sync
+
+If `$NOTES_ROOT` is a git repository, notes are synced with its `origin` remote. Before opening a file the script pulls, and after the editor exits it commits everything and pushes. Sync on demand with:
+
+```bash
+notes sync
+```
+
+Pulls rebase local commits on top of the remote. On a conflict the rebase is aborted, local commits are kept, and a message asks you to resolve it in `$NOTES_ROOT`. When offline, the push is retried on the next sync. Set `NOTES_SYNC=0` to disable syncing.
+
+Append-mostly files merge cleanly with a `.gitattributes` in the notes repository:
+
+```text
+tasks.md merge=union
+```
+
+Auto-commits are unsigned, and SSH runs in batch mode, so the remote key must be usable without a prompt.
+
+### Periodic sync with home-manager
+
+```nix
+imports = [ notes-script.homeManagerModules.default ];
+
+programs.notes = {
+  enable = true;
+  sync.enable = true;
+  sync.interval = "15min";
+};
+```
+
+This installs `notes` and a `notes-sync` systemd user timer.

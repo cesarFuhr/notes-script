@@ -6,7 +6,7 @@
   };
 
   outputs =
-    inputs@{ nixpkgs, ... }:
+    inputs@{ self, nixpkgs, ... }:
     let
       systems = [
         "x86_64-linux"
@@ -17,6 +17,8 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f system);
     in
     {
+      homeManagerModules.default = import ./hm-module.nix self;
+
       packages = forAllSystems (
         system:
         let
@@ -45,12 +47,16 @@
           notes = pack {
             packageName = "notes";
             buildInputs = [
+              pkgs.bash
               pkgs.coreutils
               pkgs.findutils
               pkgs.fzf
+              pkgs.git
+              pkgs.openssh
               pkgs.ripgrep
               pkgs.tre
-            ];
+            ]
+            ++ pkgs.lib.optional pkgs.stdenv.isLinux pkgs.util-linux;
           };
         }
       );
