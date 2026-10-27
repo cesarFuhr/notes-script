@@ -31,12 +31,8 @@ is_command() {
 }
 
 git_notes() {
-  GIT_SSH_COMMAND=${GIT_SSH_COMMAND:-"ssh -o BatchMode=yes -o ConnectTimeout=5"} \
+  GIT_SSH_COMMAND=${GIT_SSH_COMMAND:-"ssh -o BatchMode=yes -o ConnectTimeout=3"} \
     git -C "$NOTES_ROOT" "$@"
-}
-
-sync_enabled() {
-  [[ ${NOTES_SYNC:-1} != 0 ]] && command -v git >/dev/null && git_notes rev-parse --is-inside-work-tree &>/dev/null
 }
 
 # Serializes syncs between the editor wrapper and the timer.
@@ -124,16 +120,10 @@ open_file() {
 
   mkdir -p "$(dirname "$file")"
   read -r -a editor <<<"${EDITOR:-vi}"
-  if sync_enabled; then
-    with_lock pull_notes || true
-  fi
   if [[ -n $line ]]; then
     (cd "$NOTES_ROOT" && "${editor[@]}" "+$line" "$file")
   else
     (cd "$NOTES_ROOT" && "${editor[@]}" "$file")
-  fi
-  if sync_enabled; then
-    with_lock sync_notes || true
   fi
 }
 
@@ -209,8 +199,7 @@ case "$COMMAND" in
     ;;
   sync)
     (( $# == 0 )) || { usage >&2; exit 2; }
-    [[ ${NOTES_SYNC:-1} != 0 ]] || { printf 'notes: sync disabled by NOTES_SYNC=0\n' >&2; exit 1; }
-    sync_enabled || { printf 'notes: %s is not a git repository\n' "$NOTES_ROOT" >&2; exit 1; }
+    git_notes rev-parse --is-inside-work-tree &>/dev/null || { printf 'notes: %s is not a git repository\n' "$NOTES_ROOT" >&2; exit 1; }
     with_lock sync_notes
     ;;
   conflicts)

@@ -52,7 +52,6 @@
               pkgs.findutils
               pkgs.fzf
               pkgs.git
-              pkgs.openssh
               pkgs.ripgrep
               pkgs.tre
             ]

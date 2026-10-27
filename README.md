@@ -80,13 +80,13 @@ Text after `find` is used as the initial `fzf` query.
 
 ## Sync
 
-If `$NOTES_ROOT` is a git repository, notes are synced with its `origin` remote. Before opening a file the script pulls, and after the editor exits it commits everything and pushes. Sync on demand with:
+If `$NOTES_ROOT` is a git repository, `notes sync` commits everything, pulls and pushes to its `origin` remote. Run it on demand, or periodically with the timer below:
 
 ```bash
 notes sync
 ```
 
-Pulls rebase local commits on top of the remote. When offline, the push is retried on the next sync. Set `NOTES_SYNC=0` to disable syncing.
+Pulls rebase local commits on top of the remote. When offline, the push is retried on the next sync.
 
 Conflicts never block syncing. The remote is merged and committed as-is: text files keep both versions between conflict markers labelled with the host name, and binary files take the remote version while the local one is saved beside it as `name.conflict-<host>.ext`. A desktop notification names the files. Pick one and edit it with:
 
@@ -100,7 +100,7 @@ Append-mostly files merge cleanly with a `.gitattributes` in the notes repositor
 tasks.md merge=union
 ```
 
-Auto-commits are unsigned, and SSH runs in batch mode, so the remote key must be usable without a prompt.
+Auto-commits are unsigned, and the system `ssh` runs in batch mode, so the remote key must be usable without a prompt.
 
 ### Periodic sync with home-manager
 
@@ -110,8 +110,8 @@ imports = [ notes-script.homeManagerModules.default ];
 programs.notes = {
   enable = true;
   sync.enable = true;
-  sync.interval = "15min";
+  sync.interval = "5min";
 };
 ```
 
-This installs `notes` and a `notes-sync` systemd user timer.
+This installs `notes` and a `notes-sync` systemd user timer that syncs shortly after login and then every `sync.interval`.

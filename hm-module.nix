@@ -29,7 +29,7 @@ in
 
       interval = lib.mkOption {
         type = lib.types.str;
-        default = "15min";
+        default = "5min";
         description = "How often to sync, as a systemd time span.";
       };
     };
@@ -51,7 +51,7 @@ in
     systemd.user.timers.notes-sync = lib.mkIf cfg.sync.enable {
       Unit.Description = "Sync notes repository periodically";
       Timer = {
-        OnStartupSec = "2min";
+        OnStartupSec = "10s";
         OnUnitActiveSec = cfg.sync.interval;
       };
       Install.WantedBy = [ "timers.target" ];
