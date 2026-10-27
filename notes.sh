@@ -17,7 +17,7 @@ Usage:
   notes [space] todo
   notes [space] search QUERY
   notes [space] find [QUERY]
-  notes sync
+  notes sync [--status]
   notes conflicts
 EOF
 }
@@ -40,7 +40,10 @@ with_lock() {
   local lock
   lock=$(git_notes rev-parse --absolute-git-dir)/notes-sync.lock
   if command -v flock >/dev/null; then
-    (flock -w 30 9 && "$@") 9>"$lock"
+    (
+      flock -w 30 9 || { printf 'notes: another sync is still running\n' >&2; exit 1; }
+      "$@"
+    ) 9>"$lock"
   else
     "$@"
   fi
@@ -69,7 +72,7 @@ commit_conflicts() {
   local path
   local -a paths
   mapfile -d '' paths < <(git_notes diff --name-only --diff-filter=U -z)
-  (( ${#paths[@]} > 0 )) || return 1
+  (( ${#paths[@]} > 0 )) || { printf 'notes: merge failed without conflicts\n' >&2; return 1; }
   for path in "${paths[@]}"; do
     if git_notes cat-file -e ":2:$path" 2>/dev/null && git_notes cat-file -e ":3:$path" 2>/dev/null \
       && ! grep -q '^<<<<<<< ' "$NOTES_ROOT/$path" 2>/dev/null; then
@@ -86,8 +89,10 @@ commit_conflicts() {
 
 pull_notes() {
   git_notes remote get-url origin &>/dev/null || return 0
-  if ! git_notes fetch --quiet origin &>/dev/null; then
-    printf 'notes: pull failed, continuing offline\n' >&2
+  local err
+  if ! err=$(git_notes fetch --quiet origin 2>&1); then
+    err=$(grep -v -e '^$' -e '^Please make sure' -e '^and the repository exists' <<<"$err" | paste -sd ' ')
+    printf 'notes: fetch failed, continuing offline: %s\n' "$err" >&2
     return 1
   fi
   local upstream
@@ -111,6 +116,96 @@ push_notes() {
 
 sync_notes() {
   commit_notes && pull_notes && push_notes
+}
+
+# One "path<TAB>line:text" entry per marker or conflict copy; paths may contain colons.
+list_conflicts() {
+  cd "$NOTES_ROOT" && {
+    rg --null --line-number --no-heading --glob '!.git' '^<<<<<<< ' . | tr '\0' '\t' || true
+    find . -path ./.git -prune -o -type f -name '*.conflict-*' -printf '%p\t1:\n'
+  }
+}
+
+ago() {
+  local seconds=$(( $(date +%s) - $1 ))
+  if (( seconds < 60 )); then
+    printf '%ds ago' "$seconds"
+  elif (( seconds < 3600 )); then
+    printf '%dm ago' $(( seconds / 60 ))
+  elif (( seconds < 86400 )); then
+    printf '%dh ago' $(( seconds / 3600 ))
+  else
+    printf '%dd ago' $(( seconds / 86400 ))
+  fi
+}
+
+# Reports sync state from local data only, so it is instant and works offline.
+sync_status() {
+  local git_dir upstream counts ahead behind changed files timers started next last result
+  git_dir=$(git_notes rev-parse --absolute-git-dir)
+
+  printf '%-12s %s\n' repository "$NOTES_ROOT"
+  printf '%-12s %s\n' remote "$(git_notes remote get-url origin 2>/dev/null || echo none)"
+
+  changed=$(git_notes status --porcelain | wc -l)
+  printf '%-12s %s\n' uncommitted "$changed file(s)"
+
+  if upstream=$(git_notes rev-parse --abbrev-ref '@{upstream}' 2>/dev/null); then
+    counts=$(git_notes rev-list --left-right --count "HEAD...$upstream")
+    read -r ahead behind <<<"$counts"
+    printf '%-12s %s\n' unpushed "$ahead commit(s)"
+    printf '%-12s %s\n' behind "$behind commit(s) as of last fetch"
+  else
+    printf '%-12s %s\n' upstream none
+  fi
+
+  if [[ -f $git_dir/FETCH_HEAD ]]; then
+    printf '%-12s %s\n' 'last fetch' "$(ago "$(stat -c %Y "$git_dir/FETCH_HEAD")")"
+  else
+    printf '%-12s %s\n' 'last fetch' never
+  fi
+  if git_notes rev-parse --verify --quiet HEAD >/dev/null; then
+    printf '%-12s %s\n' 'last commit' "$(ago "$(git_notes log -1 --format=%ct)") ($(git_notes log -1 --format=%s))"
+  fi
+
+  files=$(list_conflicts | cut -f1 | sort -u | wc -l)
+  if (( files > 0 )); then
+    printf '%-12s %s\n' conflicts "$files file(s), run notes conflicts"
+  else
+    printf '%-12s %s\n' conflicts none
+  fi
+
+  if command -v systemctl >/dev/null; then
+    timers=$(systemctl --user list-timers notes-sync.timer --output=json 2>/dev/null || true)
+    if [[ $(systemctl --user show notes-sync.service --property=ActiveState --value 2>/dev/null) == activating ]]; then
+      started=$(systemctl --user show notes-sync.service --property=InactiveExitTimestamp --value --timestamp=unix)
+      started=${started#@}
+      printf '%-12s %s\n' timer "sync running now, started $(ago "$started")"
+    elif [[ $timers =~ \"next\":([0-9]+).*\"last\":([0-9]+) ]]; then
+      next=$(( BASH_REMATCH[1] / 1000000 - $(date +%s) ))
+      last=$(( BASH_REMATCH[2] / 1000000 ))
+      result=$(systemctl --user show notes-sync.service --property=Result --value)
+      printf '%-12s %s\n' timer "last run $(ago "$last") ($result), next in $(( next / 60 ))m$(( next % 60 ))s"
+    else
+      printf '%-12s %s\n' timer 'not running'
+    fi
+  fi
+
+  if command -v journalctl >/dev/null; then
+    local failures count id
+    failures=$(journalctl --user --unit=notes-sync.service --since=-24h --output=json \
+      --output-fields=MESSAGE,USER_INVOCATION_ID --no-pager 2>/dev/null | grep 'Failed with result' || true)
+    count=$(grep -c . <<<"$failures" || true)
+    if (( count == 0 )); then
+      printf '%-12s %s\n' failures 'none in the last 24h'
+    elif [[ ${failures##*$'\n'} =~ \"USER_INVOCATION_ID\":\"([0-9a-f]+)\" ]]; then
+      id=${BASH_REMATCH[1]}
+      [[ ${failures##*$'\n'} =~ \"__REALTIME_TIMESTAMP\":\"([0-9]+)\" ]]
+      printf '%-12s %s\n' failures "$count in the last 24h, latest $(ago $(( BASH_REMATCH[1] / 1000000 ))):"
+      journalctl --user "_SYSTEMD_INVOCATION_ID=$id" --output=cat --no-pager 2>/dev/null \
+        | grep . | sed 's/^/             /' || printf '             (no output)\n'
+    fi
+  fi
 }
 
 open_file() {
@@ -198,20 +293,18 @@ case "$COMMAND" in
     [[ -n $selected ]] && open_file "$SPACE_ROOT/${selected#./}"
     ;;
   sync)
-    (( $# == 0 )) || { usage >&2; exit 2; }
+    (( $# == 0 )) || [[ $# == 1 && $1 == --status ]] || { usage >&2; exit 2; }
     git_notes rev-parse --is-inside-work-tree &>/dev/null || { printf 'notes: %s is not a git repository\n' "$NOTES_ROOT" >&2; exit 1; }
-    with_lock sync_notes
+    if (( $# == 1 )); then
+      sync_status
+    else
+      with_lock sync_notes
+    fi
     ;;
   conflicts)
     (( $# == 0 )) || { usage >&2; exit 2; }
     [[ -d $NOTES_ROOT ]] || exit 0
-    # One "path<TAB>line:text" entry per marker or conflict copy; paths may contain colons.
-    conflicts=$(
-      cd "$NOTES_ROOT" && {
-        rg --null --line-number --no-heading --glob '!.git' '^<<<<<<< ' . | tr '\0' '\t' || true
-        find . -path ./.git -prune -o -type f -name '*.conflict-*' -printf '%p\t1:\n'
-      }
-    )
+    conflicts=$(list_conflicts)
     [[ -n $conflicts ]] || { printf 'notes: no conflicts\n'; exit 0; }
     selected=$(fzf <<<"$conflicts") || exit 0
     file=${selected%%$'\t'*}

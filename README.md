@@ -88,6 +88,14 @@ notes sync
 
 Pulls rebase local commits on top of the remote. When offline, the push is retried on the next sync.
 
+Check how syncing is doing without touching the network:
+
+```bash
+notes sync --status
+```
+
+It reports uncommitted files, unpushed commits, commits behind as of the last fetch, open conflicts, the timer's last and next run (or a sync in progress), and how many timer runs failed in the last 24 hours with the messages from the latest failure.
+
 Conflicts never block syncing. The remote is merged and committed as-is: text files keep both versions between conflict markers labelled with the host name, and binary files take the remote version while the local one is saved beside it as `name.conflict-<host>.ext`. A desktop notification names the files. Pick one and edit it with:
 
 ```bash
